@@ -1,0 +1,890 @@
+import * as React from 'react';
+import PropTypes from 'prop-types';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  StatusBar,
+  AppRegistry,
+  Dimensions,
+  Alert,
+  Modal,
+  TouchableHighlight,
+  AsyncStorage,
+} from 'react-native';
+import { Button } from 'react-native-elements';
+
+import { createAppContainer } from 'react-navigation';
+import { createStackNavigator } from 'react-navigation-stack';
+
+import { PureComponent } from 'react';
+import { GameEngine, GameLoop } from 'react-native-game-engine';
+import { Finger } from './ren';
+import { MoveFinger } from './systems.js';
+import Matter from 'matter-js'; //physics & grav
+
+import { Accelerometer } from 'expo-sensors';
+
+import Circle from './components/Circle';
+import Box from './components/Box';
+import randomInt from 'random-int';
+import randomColor from 'randomcolor';
+
+import Physics1 from './physics';
+
+const { height, width } = Dimensions.get('window');
+
+const BALL_SIZE = 20;
+const DEBRIS_HEIGHT = 70;
+const DEBRIS_WIDTH = 20;
+const Score1 = 0;
+
+
+export class scoreSave extends React.Component {
+
+  state = {
+
+    score : 0
+  }
+
+componentDidMount() {
+    this.retrieveData()
+}
+  retrieveData = async () => {
+    try {
+      const score = await AsyncStorage.getItem(Score1)
+
+      if (score !== null) {
+        this.setState({ score })
+      }
+    } catch (e) {
+      alert('Failed to load score.')
+    }
+  }
+
+  save = async score => {
+    try {
+      await AsyncStorage.setItem(Score1, score)
+      alert('Score successfully saved!')
+      this.setState({ score })
+    } catch (e) {
+      alert('Failed to save score.')
+    }
+  }
+
+  removeEverything = async () => {
+    try {
+      await AsyncStorage.clear()
+      alert('Storage successfully cleared!')
+    } catch (e) {
+      alert('Failed to clear the async storage.')
+    }
+  }
+
+
+
+
+}
+
+const mid_point = width - BALL_SIZE / 2;
+
+const ballSettings = {
+  isStatic: true,
+};
+
+const debrisSettings = {
+  isStatic: false,
+
+  density: 50,
+};
+
+const ball = Matter.Bodies.circle(200, height - 140, BALL_SIZE, {
+  ...ballSettings,
+  label: 'ball',
+});
+const floor = Matter.Bodies.rectangle(width / 2, height, width, 10, {
+  isStatic: true,
+  isSensor: true,
+  label: 'floor',
+});
+
+//var firebase = require("firebase/app");
+
+/*const firebaseConfig = { apiKey: "AIzaSyChVo13-uK_BgWKC4J5XNcESNA6i5VdSqc",
+ authDomain: "color-storm-dbcd4.firebaseapp.com", 
+ databaseURL: "https://color-storm-dbcd4.firebaseio.com/", 
+ storageBucket: "color-storm-dbcd4.appspot.com" }; 
+ firebase.initializeApp(firebaseConfig); 
+ function storeHighScore(userId, score) { firebase.database().ref('users/' + userId).set({ highscore: score }); }
+*/
+
+var continuegame = StyleSheet.create({
+  container: {
+    paddingTop: 0,
+  },
+
+  buttonContainer: {
+    margin: 25,
+  },
+
+  alternativeLayoutButtonContainer: {
+    flexDirection: 'row',
+  },
+});
+
+var exit_l = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    marginBottom: 36,
+  },
+
+  buttonContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    marginBottom: 36,
+  },
+
+  
+});
+
+var newgame = StyleSheet.create({
+  container: {
+    paddingTop: 60,
+  },
+
+  buttonContainer: {
+    margin: 25,
+  },
+
+  alternativeLayoutButtonContainer: {
+    margin: 1,
+
+    flexDirection: 'row',
+  },
+});
+
+var title = StyleSheet.create({
+  container: {
+    flex: 3,
+
+    backgroundColor: 'aliceblue',
+  },
+});
+
+class BlinkingClass extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { showText: true };
+
+    // Change the state every second or the time given by User.
+    setInterval(
+      () => {
+        this.setState(previousState => {
+          return { showText: !previousState.showText };
+        });
+      },
+      //blinking time.
+      490
+    );
+  }
+  render() {
+    let display = this.state.showText ? this.props.text : ' ';
+    return (
+      <Text
+        style={{
+          color: 'deepskyblue',
+
+          fontWeight: 'bold',
+
+          fontSize: 58,
+
+          textAlign: 'center',
+
+          fontFamily: 'verdana',
+
+          textShadowColor: 'deepskyblue',
+
+          textShadowRadius: 8,
+
+          paddingTop: 30,
+        }}>
+        {display}
+      </Text>
+    );
+  }
+}
+class BlinkText extends React.Component {
+  render() {
+    return (
+      <View>
+        <BlinkingClass text="Color Storm" />
+      </View>
+    );
+  }
+}
+
+//main screen
+
+class HomeScreen extends React.Component {
+  state = {
+    modalVisible: false,
+  };
+
+  setModalVisible(visible) {
+    this.setState({ modalVisible: visible });
+  }
+  render() {
+    const { navigate } = this.props.navigation;
+    let display = this.state.showText ? this.props.text : ' ';
+    return (
+      <View style={title.container}>
+        <BlinkingClass text="Color Storm" />
+
+        <View style={newgame.container}>
+          <View style={newgame.buttonContainer}>
+            <Button
+              title="New Game"
+              color="mediumseagreen"
+              onPress={() => this.props.navigation.navigate('Details')}
+            />
+          </View>
+
+          <View style={newgame.buttonContainer} />
+
+          <View style={newgame.alternativeLayoutButtonContainer} />
+        </View>
+
+        <View style={continuegame.container}>
+          <View style={continuegame.buttonContainer}>
+            <View style={{ marginTop: 22 }}>
+              <Modal
+                animationType="slide"
+                transparent={false}
+                visible={this.state.modalVisible}
+                onRequestClose={() => {
+                  Alert.alert('Modal has been closed.');
+                }}>
+                <View style={{ marginTop: 22 }}>
+                  <View>
+                    <Text
+                      style={{
+                        color: 'gold',
+
+                        fontWeight: 'bold',
+
+                        fontSize: 35,
+
+                        textAlign: 'center',
+
+                        fontFamily: 'verdana',
+
+                        textShadowColor: 'black',
+
+                        textShadowRadius: 12,
+
+                        backgroundColor: "black",
+
+                        paddingTop: 15,
+                      }}>
+                      🏆Leaderboard🏆
+                      {display}{' '}
+                    </Text>
+                    </View>
+                </View>
+
+                <View style={{ marginTop: 22 }}>
+                  <View>
+                    <Text
+                      style={{
+                        color: 'black',
+
+                        fontWeight: 'bold',
+
+                        fontSize: 35,
+
+                        textAlign: 'center',
+
+                        fontFamily: 'verdana',
+
+                        textShadowColor: 'gold',
+
+                        textShadowRadius: 12,
+
+                        paddingTop: 15,
+                      }}>
+                      Scores
+                      {display}{' '}
+                    </Text>
+                    </View>
+                </View>
+
+                <View style={{ marginTop: 0 }}>
+                  <View>
+                    <Text
+                      style={{
+                        color: 'black',
+
+                        fontWeight: 'bold',
+
+                        fontSize: 10,
+
+                        textAlign: 'center',
+
+                        fontFamily: 'verdana',
+
+                        textShadowColor: 'gold',
+
+                        textShadowRadius: 5,
+
+                        paddingTop: 0,
+                      }}>
+                      ___________________________________________
+                      {display}{' '}
+                    </Text>
+                    </View>
+                </View>
+
+                <View style={{ marginTop: 0 }}>
+                  <View>
+                    <Text
+                      style={{
+                        color: 'black',
+
+                        fontWeight: 'bold',
+
+                        fontSize: 25,
+
+                        textAlign: 'center',
+
+                        fontFamily: 'verdana',
+
+                        textShadowColor: 'gold',
+
+                        textShadowRadius: 12,
+
+                        paddingTop: 35,
+                      }}>
+                      
+                      {display}{Score1}
+                    </Text>
+                    </View>
+                </View>
+
+                <View style={{ marginTop: 0 }}>
+                  <View>
+                    <Text
+                      style={{
+                        color: 'black',
+
+                        fontWeight: 'bold',
+
+                        fontSize: 25,
+
+                        textAlign: 'center',
+
+                        fontFamily: 'verdana',
+
+                        textShadowColor: 'gold',
+
+                        textShadowRadius: 12,
+
+                        paddingTop: 35,
+                      }}>
+                      2
+                      {display}{' '}
+                    </Text>
+                    </View>
+                </View>
+
+                <View style={{ marginTop: 0 }}>
+                  <View>
+                    <Text
+                      style={{
+                        color: 'black',
+
+                        fontWeight: 'bold',
+
+                        fontSize: 25,
+
+                        textAlign: 'center',
+
+                        fontFamily: 'verdana',
+
+                        textShadowColor: 'gold',
+
+                        textShadowRadius: 12,
+
+                        paddingTop: 35,
+                      }}>
+                      3
+                      {display}{' '}
+                    </Text>
+                    </View>
+                </View>
+
+
+                <View style={ exit_l.container }>
+                <View style={ exit_l.buttonContainer}>
+
+                    <TouchableHighlight
+                      onPress={() => {
+                        this.setModalVisible(!this.state.modalVisible);
+                      }}>
+                      <Text
+                        style={{
+                          color: 'gold',
+
+                          fontWeight: 'bold',
+
+                          fontSize: 35,
+
+                          textAlign: 'center',
+
+                          backgroundColor:'black',
+
+                          fontFamily: 'verdana',
+
+                          textShadowColor: 'blue',
+
+                          textShadowRadius: 8,
+
+                          margin: 50,
+
+                          paddingTop: 0
+                        }}>
+                        Exit
+                      </Text>
+                    </TouchableHighlight>
+                    </View>
+                    </View>
+                  
+              </Modal>
+
+              <TouchableHighlight>
+                <Button
+                  title="🏆 Leaderboard 🏆"
+                  color="mediumseagreen"
+                  onPress={() => {
+                    this.setModalVisible(true);
+                  }}
+                />
+              </TouchableHighlight>
+            </View>
+          </View>
+
+          <View style={continuegame.buttonContainer} />
+
+          <View style={continuegame.alternativeLayoutButtonContainer} />
+        </View>
+      </View>
+    );
+  }
+}
+
+const { width: WIDTH, height: HEIGHT } = Dimensions.get("window");
+const RADIUS = 25;
+
+Accelerometer.setUpdateInterval(15);
+class GameScreen extends React.Component {
+  
+
+  state = {
+    y: height - 10,
+    isGameReady: false,
+  };
+
+
+  constructor(props) {
+    super(props);
+    this.state = {
+      x: WIDTH / 2 - RADIUS,
+    };
+
+    this.updateHandler = ({ touches, screen, time }) => {
+    let move = touches.find(x => x.type === "move");
+    if (move) {
+      this.setState({
+        x: this.state.x + move.delta.pageX,
+        y: this.state.y + move.delta.pageY
+      });
+    }
+  };
+
+    this.debris = [];
+
+    const { engine, world } = this._addObjectsToWorld(ball);
+
+    this.entities = this._getEntities(engine, world, ball);
+
+    this._setupCollisionHandler(engine);
+
+    this.physics = (entities, { time }) => {
+      let engine = entities['physics'].engine;
+      engine.world.gravity.y = 0.5;
+      Matter.Engine.update(engine, time.delta);
+      return entities;
+    };
+  } //end constructor
+
+  state = {
+    accelerometerData: {},
+    score2: {},
+  };
+
+  componentDidMount() {
+    this.retrieveData();
+    this._subscribe(({ x }) => {
+      Matter.Body.setPosition(ball, {
+        x: this.state.x + x,
+        y: height - 30,
+      });
+
+      this.setState( state => ({ x: x + state.x, }),
+        () => {
+          if (this.state.x < 0 || this.state.x > width) {
+            Matter.Body.setPosition(ball, {
+              x: mid_point,
+              y: height - 30,
+            });
+
+            this.setState({
+              x: mid_point,
+            });
+          }
+        }
+      );
+    });
+    this.state = { isGameReady: true };
+  }
+    //retrieve
+    retrieveData = async () => {
+    try {
+      const score = await AsyncStorage.getItem(score)
+
+      if (score !== null) {
+        this.setState({ score })
+      }
+    } catch (e) {
+      alert('Failed to load score.')
+    }
+  }
+      //save
+      save = async score => {
+    try {
+      await AsyncStorage.setItem(Score1, score)
+      alert('Score successfully saved!')
+      this.setState({ score })
+    } catch (e) {
+      alert('Failed to save score.')
+    }
+  }
+
+    removeEverything = async () => {
+    try {
+      await AsyncStorage.clear()
+      alert('Storage successfully cleared!')
+    } catch (e) {
+      alert('Failed to clear the async storage.')
+    }
+  }
+
+    onChangeScore = score => this.setState({ score })
+
+  onSubmitEditing = () => {
+    const onSave = this.save
+    const { text } = this.state
+
+    if (!text) return
+
+    onSave(text)
+    this.setState({ text: '' })
+}
+
+
+  componentWillUnmount() {
+    this._unsubscribe();
+  }
+
+  _subscribe = () => {
+    this._subscription = Accelerometer.addListener(accelerometerData => {
+      this.setState({ accelerometerData });
+    });
+  };
+
+  _unsubscribe = () => {
+    this._subscription && this._subscription.remove();
+    this._subscription = null;
+  };
+
+  _addObjectsToWorld = ball => {
+    const engine = Matter.Engine.create({ enableSleeping: false });
+    const world = engine.world;
+
+    let objects = [ball, floor];
+
+    for (let x = 0; x <= 5; x++) {
+      const debris = Matter.Bodies.rectangle(
+        randomInt(1, width - 30),
+        randomInt(0, 200),
+        DEBRIS_WIDTH,
+        DEBRIS_HEIGHT,
+
+        {
+          frictionAir: 0.05,
+          label: 'debris',
+        }
+      );
+
+      this.debris.push(debris);
+    }
+
+    objects = objects.concat(this.debris);
+
+    Matter.World.add(world, objects);
+
+    return {
+      engine,
+      world,
+    };
+  };
+
+  _getEntities = (engine, world, ball) => {
+    const entities = {
+      physics: {
+        engine,
+        world,
+      },
+      playerBall: {
+        body: ball,
+        size: [BALL_SIZE, BALL_SIZE],
+        renderer: Circle,
+      },
+      gameFloor: {
+        body: floor,
+        size: [width, 10],
+        color: '#414448',
+        renderer: Box,
+      },
+    };
+
+    for (let x = 0; x <= 5; x++) {
+      Object.assign(entities, {
+        ['debris_' + x]: {
+          body: this.debris[x],
+
+          size: [DEBRIS_WIDTH, DEBRIS_HEIGHT],
+
+          color: randomColor({
+            luminosity: 'dark',
+          }),
+
+          renderer: Box,
+        },
+      });
+    }
+
+    return entities;
+  };
+
+
+
+  _setupCollisionHandler = engine => {
+    Matter.Events.on(engine, 'collisionStart', event => {
+      var pairs = event.pairs;
+
+      var objA = pairs[0].bodyA.label;
+
+      var objB = pairs[0].bodyB.label;
+
+      if (objA === 'floor' && objB === 'debris') {
+        Matter.Body.setPosition(pairs[0].bodyB, {
+          x: randomInt(1, width - 30),
+
+          y: randomInt(0, 200),
+        });
+
+
+
+        this.setState(state => ({
+          score: state.score + 1,
+         
+         
+        }));
+
+      
+
+        
+      }
+
+      
+
+      if (objA === 'ball' && objB === 'debris') {
+        Alert.alert('Game Over', 'Ok to continue' );
+
+         score => this.setState({ score });
+        
+
+        this.debris.forEach(debris => {
+          Matter.Body.set(debris, {
+            isStatic: true,
+          });
+        });
+      }
+    });
+  }; //end comp
+
+  render() {
+    const { isGameReady, score } = this.state;
+
+    if (!this.state.isGameReady) {
+      return (
+        <GameLoop>
+        <GameEngine entities={this.entities} systems={[this.physics]}>
+          <View style={styles.header}>
+            <Button onPress={this.reset} title="Reset" color="#841584" />
+            <Text style={styles.scoreText}>{score}</Text>
+              
+          </View>
+        </GameEngine>
+
+        <GameLoop style={styles.container} onUpdate={this.updateHandler}>
+
+        <View style={[styles3.player, { left: this.state.x, top: this.state.y }]}          
+        />
+
+      </GameLoop>
+      </GameLoop>
+      );
+    } //end if statement for game ready
+
+    return null;
+  }
+  reset = () => {
+    this.debris.forEach(debris => {
+      Matter.Body.set(debris, {
+        isStatic: false,
+      });
+
+      Matter.Body.setPosition(debris, {
+        x: randomInt(1, width - 30),
+
+        y: randomInt(0, 200),
+      });
+    });
+
+    this.setState({
+      score: 0,
+    
+    });
+  };
+} //end gamescreen
+
+const styles3 = StyleSheet.create({
+  player: {
+    position: "absolute",
+    backgroundColor: "green",
+    width: RADIUS * 2,
+    height: RADIUS * 2,
+    borderRadius: RADIUS * 2
+  }
+});
+
+const styles = StyleSheet.create({
+
+  header: {
+    padding: 20,
+
+    alignItems: 'center',
+  },
+
+  scoreText: {
+    fontSize: 25,
+
+    fontWeight: 'bold',
+  },
+});
+
+class GameScreen2 extends PureComponent {
+  constructor() {
+    super();
+  }
+
+  render() {
+    return (
+      <GameEngine
+        systems={[MoveFinger]} // We can add as many systems as needed
+        entities1={{
+          1: { position: [165, 450], renderer: <Finger /> },
+        }}>
+        <StatusBar hidden={true} />
+      </GameEngine>
+    );
+  }
+}
+//for GameScreen
+
+class GameTimer extends React.Component {
+  constructor(props) {
+    super(props);
+
+    this.state = { timer: 5 };
+  }
+
+  componentDidMount() {
+    this.interval = setInterval(
+      () => this.setState(prevState => ({ timer: prevState.timer - 1 })),
+
+      1000
+    );
+  }
+
+  componentDidUpdate() {
+    if (this.state.timer === 0) {
+      clearInterval(this.interval);
+    }
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.interval);
+  }
+
+  render() {
+    let display = this.state.showText ? this.props.text : ' ';
+    return (
+      <View style={{ flex: 150, justifyContent: 'top' }}>
+        <Text
+          style={{
+            color: 'deepskyblue',
+
+            fontWeight: 'bold',
+
+            fontSize: 35,
+
+            textAlign: 'center',
+
+            fontFamily: 'verdana',
+
+            textShadowColor: 'deepskyblue',
+
+            textShadowRadius: 8,
+
+            paddingTop: 10,
+          }}>
+          {this.state.timer}
+          {display}{' '}
+        </Text>
+      </View>
+    );
+  }
+}
+
+const RootStack = createStackNavigator({
+  Home: HomeScreen,
+
+  Details: GameScreen,
+  Screen2: GameScreen2,
+});
+
+export default createAppContainer(RootStack);
